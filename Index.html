@@ -1,0 +1,1826 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1e3a8a">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="E-ABSEN KARYAWAN LPD">
+    <meta name="application-name" content="E-ABSEN KARYAWAN LPD">
+    <meta name="format-detection" content="telephone=no">
+
+    <title>E-ABSEN KARYAWAN LPD Pesedahan</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- HTML5 QRCode -->
+    <script src="https://unpkg.com/html5-qrcode"></script>
+
+    <script>
+// ==========================================
+// SIPADAN - INSTALL KE LAYAR UTAMA ANDROID
+// Lapisan instalasi ini tidak mengubah login,
+// QR ID Card, selfie, GPS, dashboard, laporan,
+// master karyawan, maupun database.
+// ==========================================
+let sipadanInstallPrompt = null;
+
+function sipadanIsStandalone() {
+    return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+
+window.addEventListener('beforeinstallprompt', function(e) {
+    e.preventDefault();
+    sipadanInstallPrompt = e;
+    sipadanShowInstallButton();
+});
+
+window.addEventListener('appinstalled', function() {
+    sipadanInstallPrompt = null;
+    sipadanHideInstallButton();
+});
+
+function sipadanShowInstallButton() {
+    if (sipadanIsStandalone()) return;
+    const b = document.getElementById('btn-install-app');
+    if (b) b.classList.remove('hidden');
+}
+
+function sipadanHideInstallButton() {
+    const b = document.getElementById('btn-install-app');
+    if (b) b.classList.add('hidden');
+}
+
+async function installSIPADAN() {
+    if (sipadanIsStandalone()) {
+        if (typeof Swal !== 'undefined') Swal.fire('E-ABSEN KARYAWAN', 'Aplikasi sudah terpasang.', 'info');
+        return;
+    }
+    if (sipadanInstallPrompt) {
+        sipadanInstallPrompt.prompt();
+        try { await sipadanInstallPrompt.userChoice; } catch(e) {}
+        sipadanInstallPrompt = null;
+        return;
+    }
+    const help = document.getElementById('install-help');
+    if (help) {
+        help.innerHTML = '<b>Cara memasang di Android:</b><br>1. Buka URL E-ABSEN KARYAWAN dengan <b>Google Chrome</b>.<br>2. Tekan menu <b>⋮</b>.<br>3. Pilih <b>Tambahkan ke layar utama</b> atau <b>Install app</b>.<br>4. Tekan <b>Tambahkan/Install</b>.';
+        help.classList.remove('hidden');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    if (!sipadanIsStandalone()) setTimeout(sipadanShowInstallButton, 800);
+});
+</script>
+
+<script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        navy: '#1e3a8a',
+                        gold: '#d97706',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #f3f4f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .app-container { max-width: 480px; margin: 0 auto; background: white; min-height: 100vh; position: relative; box-shadow: 0 0 15px rgba(0,0,0,0.1); }
+        .app-container.admin-layout { max-width: 1440px; min-height: 100vh; box-shadow: none; }
+        .admin-layout #main-content { padding: 24px 32px 40px; }
+        .admin-kpi { min-height: 118px; }
+        .admin-chart-bar { height: 12px; border-radius: 999px; background: #e5e7eb; overflow: hidden; }
+        .admin-chart-fill { height: 100%; border-radius: 999px; background: #1e3a8a; transition: width .4s ease; }
+        .admin-table th { white-space: nowrap; }
+        @media (max-width: 768px) { .admin-layout #main-content { padding: 16px; } }
+
+        @media print {
+            body { background: #fff !important; }
+            body * { visibility: hidden !important; }
+            #print-area, #print-area * { visibility: visible !important; }
+            #print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 18mm; background:#fff; }
+            .no-print { display: none !important; }
+        }
+        .admin-section-card { background:#fff; border:1px solid #e5e7eb; border-radius:16px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
+        .admin-small-btn { padding:.55rem .8rem; border-radius:.6rem; font-size:.82rem; font-weight:600; }
+        .hidden { display: none !important; }
+        #video-preview { transform: scaleX(-1); } /* Mirror effect for selfie */
+        #qr-reader { width: 100%; border: none !important; }
+        #qr-reader img { display: none; }
+    </style>
+
+<style id="sipadan-install-style">
+html, body { -webkit-tap-highlight-color: transparent; }
+@media (display-mode: standalone) { body { overscroll-behavior-y: none; } #btn-install-app { display:none !important; } }
+</style>
+
+<!-- NOTE: Google Apps Script Web App cannot host a same-origin service-worker file, so this version is install/shortcut-ready but remains online. Camera, GPS and QR continue to use the existing HTTPS Web App. -->
+</head>
+<body>
+
+<div class="app-container flex flex-col">
+    
+    <!-- LOADING OVERLAY -->
+    <div id="loading" class="hidden absolute inset-0 bg-white/80 z-50 flex flex-col items-center justify-center">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-4 border-navy"></div>
+        <p class="mt-4 text-navy font-semibold animate-pulse" id="loading-text">Memuat Data...</p>
+    </div>
+
+    <!-- HEADER (Global) -->
+    <div id="app-header" class="hidden bg-navy text-white p-4 shadow-md rounded-b-2xl">
+        <div class="flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <img id="app-logo-header" src="https://drive.google.com/thumbnail?id=18Xafn6aFfRfyMePZvqxPdawAA-cANgxt&sz=w500" alt="Logo LPD Pesedahan" class="w-10 h-10 object-contain rounded-lg bg-white p-1 shadow-sm" onerror="this.style.display='none'">
+                <div>
+                    <h1 class="font-bold text-lg leading-tight">E-ABSEN KARYAWAN</h1>
+                    <p class="text-xs text-blue-200">LPD Pesedahan</p>
+                </div>
+            </div>
+            <button onclick="logout()" class="text-white hover:text-red-400 text-sm flex flex-col items-center">
+                <i class="bi bi-box-arrow-right text-xl"></i>
+                <span>Keluar</span>
+            </button>
+        </div>
+        <div class="mt-4 flex justify-between items-center text-sm">
+            <div>Halo, <span id="user-name-display" class="font-semibold text-gold"></span></div>
+            <div id="clock-display" class="font-mono bg-blue-800 px-2 py-1 rounded">00:00:00</div>
+        </div>
+    </div>
+
+    <!-- CONTENT AREA -->
+    <div id="main-content" class="flex-1 p-4 pb-20 overflow-y-auto">
+        
+        <!-- 1. LOGIN VIEW -->
+        <div id="view-login" class="flex flex-col items-center justify-center h-full pt-10">
+            <div class="text-center mb-8">
+                <img id="app-logo-login" src="https://drive.google.com/thumbnail?id=18Xafn6aFfRfyMePZvqxPdawAA-cANgxt&sz=w500" alt="Logo LPD Pesedahan" class="w-24 h-24 object-contain mx-auto rounded-2xl bg-white p-2 shadow-sm" onerror="this.style.display='none'">
+                <h1 class="text-2xl font-bold text-navy mt-4">E-ABSEN KARYAWAN</h1>
+                <p class="text-gray-500 text-sm">LPD Pesedahan</p>
+            </div>
+            
+            <div class="w-full max-w-sm bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
+                <h2 class="text-lg font-bold mb-4 text-center">Masuk Akun</h2>
+<div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">NIK / ID Karyawan</label>
+                    <input type="text" id="login-nik" class="w-full border rounded-lg p-3 outline-none focus:border-navy" placeholder="Masukkan NIK">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">PIN</label>
+                    <input type="password" id="login-pin" class="w-full border rounded-lg p-3 outline-none focus:border-navy" placeholder="Masukkan PIN">
+                </div>
+                <button onclick="doLogin()" class="w-full bg-navy text-white font-bold rounded-lg p-3 shadow-md hover:bg-blue-900 transition">
+                    MASUK
+                </button>
+            </div>
+        </div>
+
+        <!-- 2. DASHBOARD KARYAWAN -->
+        <div id="view-dashboard" class="hidden">
+            <!-- Status Card -->
+            <div class="bg-gradient-to-r from-navy to-blue-700 rounded-xl p-4 text-white shadow-lg mb-6">
+                <h3 class="text-sm opacity-80 mb-1">Status Kehadiran Hari Ini</h3>
+                <div id="status-absen-hari-ini" class="text-xl font-bold text-gold">Belum Absen</div>
+                <div id="waktu-absen-hari-ini" class="text-sm mt-1 opacity-90">-</div>
+            </div>
+
+            <h3 class="font-bold text-gray-700 mb-3">Menu Utama</h3>
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <button onclick="showView('view-absen')" class="bg-white border border-gray-200 p-4 rounded-xl flex flex-col items-center justify-center shadow-sm hover:bg-blue-50">
+                    <i class="bi bi-fingerprint text-4xl text-navy mb-2"></i>
+                    <span class="font-semibold text-sm">Absen Masuk</span>
+                </button>
+                <button onclick="showView('view-izin')" class="bg-white border border-gray-200 p-4 rounded-xl flex flex-col items-center justify-center shadow-sm hover:bg-blue-50">
+                    <i class="bi bi-file-earmark-medical text-4xl text-gold mb-2"></i>
+                    <span class="font-semibold text-sm">Pengajuan Izin</span>
+                </button>
+            </div>
+
+            <h3 class="font-bold text-gray-700 mb-3">Riwayat Presensi (5 Terakhir)</h3>
+            <div id="riwayat-list" class="space-y-3">
+                <!-- List riwayat dinamis -->
+            </div>
+        </div>
+
+        <!-- 3. ABSEN MASUK VIEW -->
+        <div id="view-absen" class="hidden">
+            <button onclick="showView('view-dashboard')" class="text-navy text-sm mb-4 flex items-center gap-1">
+                <i class="bi bi-arrow-left"></i> Kembali
+            </button>
+            <h2 class="text-xl font-bold text-navy mb-4">Absen Masuk Harian</h2>
+
+            <!-- GPS Status -->
+            <div class="bg-white p-3 rounded-lg border shadow-sm mb-4 flex items-center gap-3">
+                <div id="gps-indicator" class="w-4 h-4 rounded-full bg-gray-400"></div>
+                <div class="flex-1">
+                    <div class="text-sm font-bold">Lokasi GPS</div>
+                    <div id="gps-text" class="text-xs text-gray-500">Mencari lokasi...</div>
+                </div>
+                <button onclick="getLocation()" class="text-navy"><i class="bi bi-arrow-repeat"></i></button>
+            </div>
+
+            <!-- Kamera Selfie -->
+            <div class="bg-black rounded-xl overflow-hidden mb-4 relative h-64 shadow-md flex items-center justify-center">
+                <video id="video-preview" class="w-full h-full object-cover hidden" autoplay playsinline></video>
+                            <input id="android-camera-input" type="file" accept="image/*" capture="user"
+                                   class="hidden" onchange="handleAndroidCameraFile(this)">
+                            <p id="camera-status" class="text-xs text-gray-500 text-center mt-2">
+                                Kamera belum aktif.
+                            </p>
+                <img id="photo-preview" class="w-full h-full object-cover hidden" />
+                <canvas id="canvas-capture" class="hidden"></canvas>
+                
+                <div id="camera-overlay" class="absolute inset-0 flex flex-col items-center justify-center bg-gray-800 text-white p-4 text-center">
+                    <i class="bi bi-camera text-4xl mb-2"></i>
+                    <p class="text-sm">Kamera diperlukan untuk Verifikasi Selfie</p>
+                    <p class="text-xs text-gray-300 mt-1">Izinkan akses kamera pada browser jika diminta.</p>
+                    <button onclick="startCamera()" class="mt-3 bg-navy px-4 py-2 rounded-lg text-sm">Buka Kamera</button>
+                </div>
+            </div>
+
+            <!-- Bantuan Kamera Android -->
+                        <div class="mb-3 flex gap-2">
+                            <button id="btn-camera-help" type="button" onclick="startCamera()"
+                                    class="flex-1 bg-slate-100 text-slate-700 py-2 rounded-lg text-xs font-semibold border">
+                                <i class="bi bi-arrow-repeat"></i> Coba Kamera Lagi
+                            </button>
+                            <button type="button" onclick="openAndroidCameraFallback()"
+                                    class="flex-1 bg-orange-100 text-orange-700 py-2 rounded-lg text-xs font-semibold border border-orange-200">
+                                <i class="bi bi-phone"></i> Kamera HP
+                            </button>
+                        </div>
+
+<!-- Action Buttons Absen -->
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <button id="btn-take-photo" onclick="takePhoto()" disabled class="bg-gray-300 text-gray-500 py-3 rounded-lg font-bold flex items-center justify-center gap-2 transition">
+                    <i class="bi bi-camera-fill"></i> Ambil Foto
+                </button>
+                <button id="btn-scan-qr" onclick="startQRScan()" class="bg-navy text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2">
+                    <i class="bi bi-qr-code-scan"></i> Scan QR
+                </button>
+            </div>
+
+            <div class="bg-blue-50 border border-blue-100 text-blue-800 rounded-lg p-3 mb-4 text-xs">
+                <div class="font-bold mb-1"><i class="bi bi-info-circle"></i> QR ID Card</div>
+                <div>Gunakan QR Code yang sudah tercetak pada ID Card Anda. QR lama tetap digunakan dan tidak perlu dicetak ulang.</div>
+            </div>
+
+            <!-- QR Reader Container -->
+            <div id="qr-container" class="hidden mb-4 p-2 bg-white rounded-lg border shadow-sm">
+                <div id="qr-reader"></div>
+                <div class="text-center mt-2">
+                    <button onclick="stopQRScan()" class="text-red-500 text-sm">Batal Scan</button>
+                    <!-- Tombol Bypass untuk Simulasi Canvas -->
+                    <button id="btn-bypass-qr" onclick="handleQRSuccess((currentUser && (currentUser.Barcode || currentUser.NIK)) || '')" class="text-xs bg-gray-200 px-2 py-1 rounded ml-2">Simulasi Sukses QR ID Card</button>
+                </div>
+            </div>
+
+            <!-- Checklist Validasi -->
+            <div class="bg-white p-4 rounded-xl border text-sm mb-4 shadow-sm">
+                <div class="flex items-center gap-2 mb-2" id="check-lokasi">
+                    <i class="bi bi-circle text-gray-300"></i> Di dalam radius kantor
+                </div>
+                <div class="flex items-center gap-2 mb-2" id="check-foto">
+                    <i class="bi bi-circle text-gray-300"></i> Selfie terambil
+                </div>
+                <div class="flex items-center gap-2" id="check-qr">
+                    <i class="bi bi-circle text-gray-300"></i> QR Code valid
+                </div>
+            </div>
+
+            <button id="btn-submit-absen" onclick="submitAbsen()" disabled class="w-full bg-gray-400 text-white font-bold py-4 rounded-xl shadow-lg transition">
+                KIRIM ABSEN MASUK
+            </button>
+        </div>
+
+        <!-- 4. PENGAJUAN IZIN VIEW -->
+        <div id="view-izin" class="hidden">
+            <button onclick="showView('view-dashboard')" class="text-navy text-sm mb-4 flex items-center gap-1">
+                <i class="bi bi-arrow-left"></i> Kembali
+            </button>
+            <h2 class="text-xl font-bold text-navy mb-4">Pengajuan Izin</h2>
+            
+            <div class="bg-white p-4 rounded-xl border shadow-sm space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Jenis Izin *</label>
+                    <select id="izin-jenis" class="w-full border rounded-lg p-2 outline-none focus:border-navy">
+                        <option value="">-- Pilih Jenis --</option>
+                        <option value="Sakit">Sakit</option>
+                        <option value="Cuti">Cuti</option>
+                        <option value="Urusan Adat">Urusan Adat</option>
+                        <option value="Dinas Luar">Dinas Luar</option>
+                        <option value="Lainnya">Lainnya</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tgl Mulai *</label>
+                        <input type="date" id="izin-mulai" class="w-full border rounded-lg p-2 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tgl Selesai *</label>
+                        <input type="date" id="izin-selesai" class="w-full border rounded-lg p-2 outline-none">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Keterangan / Alasan *</label>
+                    <textarea id="izin-keterangan" rows="3" class="w-full border rounded-lg p-2 outline-none focus:border-navy" placeholder="Minimal 10 karakter..."></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Lampiran Bukti (Opsional)</label>
+                    <input type="file" id="izin-file" accept="image/*" class="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-navy hover:file:bg-blue-100">
+                </div>
+                <button onclick="submitIzin()" class="w-full bg-gold text-white font-bold py-3 rounded-xl shadow-md mt-2">
+                    KIRIM PENGAJUAN
+                </button>
+            </div>
+            
+            <h3 class="font-bold text-gray-700 mt-6 mb-3">Status Izin Saya</h3>
+            <div id="riwayat-izin-list" class="space-y-3">
+                <!-- List izin dinamis -->
+            </div>
+        </div>
+
+        <!-- 5. ADMIN DASHBOARD DESKTOP -->
+        <div id="view-admin" class="hidden">
+            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
+                <div class="flex items-center gap-4">
+                    <img id="app-logo-admin" src="https://drive.google.com/thumbnail?id=18Xafn6aFfRfyMePZvqxPdawAA-cANgxt&sz=w500" alt="Logo LPD Pesedahan" class="w-16 h-16 object-contain rounded-xl bg-white border p-1 shadow-sm" onerror="this.style.display='none'">
+                    <div>
+                        <div class="text-sm text-gray-500">Panel Administrasi</div>
+                        <h2 class="text-2xl lg:text-3xl font-bold text-navy">E-ABSEN KARYAWAN LPD Pesedahan</h2>
+                        <p class="text-sm text-gray-500 mt-1">Laporan presensi, izin, dan hari kerja karyawan.</p>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <select id="admin-bulan" onchange="renderAdminDashboard()" class="border rounded-lg px-3 py-2 bg-white text-sm">
+                        <option value="0">Januari</option><option value="1">Februari</option><option value="2">Maret</option><option value="3">April</option>
+                        <option value="4">Mei</option><option value="5">Juni</option><option value="6">Juli</option><option value="7">Agustus</option>
+                        <option value="8">September</option><option value="9">Oktober</option><option value="10">November</option><option value="11">Desember</option>
+                    </select>
+                    <select id="admin-tahun" onchange="renderAdminDashboard()" class="border rounded-lg px-3 py-2 bg-white text-sm"></select>
+                    <button onclick="loadData()" class="bg-navy text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="bi bi-arrow-repeat"></i> Refresh</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+                <div class="admin-kpi bg-white rounded-2xl border shadow-sm p-5"><div class="text-sm text-gray-500">Total Karyawan</div><div id="adm-total-karyawan" class="text-3xl font-bold text-navy mt-2">0</div><div class="text-xs text-gray-400 mt-1">Tidak termasuk akun admin</div></div>
+                <div class="admin-kpi bg-white rounded-2xl border shadow-sm p-5"><div class="text-sm text-gray-500">Total Absen</div><div id="adm-total-absen" class="text-3xl font-bold text-green-600 mt-2">0</div><div id="adm-label-absen" class="text-xs text-gray-400 mt-1">Bulan berjalan</div></div>
+                <div class="admin-kpi bg-white rounded-2xl border shadow-sm p-5"><div class="text-sm text-gray-500">Izin Menunggu</div><div id="adm-total-izin" class="text-3xl font-bold text-amber-600 mt-2">0</div><div class="text-xs text-gray-400 mt-1">Perlu ditindaklanjuti</div></div>
+                <div class="admin-kpi bg-white rounded-2xl border shadow-sm p-5"><div class="text-sm text-gray-500">Hari Kerja Tercatat</div><div id="adm-total-hari-kerja" class="text-3xl font-bold text-blue-600 mt-2">0</div><div class="text-xs text-gray-400 mt-1">Total hari hadir unik</div></div>
+            </div>
+
+            <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+                <div class="xl:col-span-2 bg-white rounded-2xl border shadow-sm p-5">
+                    <div class="flex items-center justify-between mb-5"><div><h3 class="font-bold text-lg text-gray-800">Grafik Absen Karyawan</h3><p id="adm-chart-period" class="text-xs text-gray-500">Per bulan</p></div><i class="bi bi-bar-chart-fill text-navy text-2xl"></i></div>
+                    <div id="admin-bar-chart" class="space-y-4"></div>
+                </div>
+                <div class="bg-white rounded-2xl border shadow-sm p-5">
+                    <h3 class="font-bold text-lg text-gray-800 mb-4">Ringkasan Izin</h3>
+                    <div class="grid grid-cols-3 gap-2 text-center">
+                        <div class="bg-yellow-50 rounded-xl p-3"><div id="adm-izin-menunggu" class="text-2xl font-bold text-yellow-600">0</div><div class="text-xs text-gray-500">Menunggu</div></div>
+                        <div class="bg-green-50 rounded-xl p-3"><div id="adm-izin-setuju" class="text-2xl font-bold text-green-600">0</div><div class="text-xs text-gray-500">Disetujui</div></div>
+                        <div class="bg-red-50 rounded-xl p-3"><div id="adm-izin-tolak" class="text-2xl font-bold text-red-600">0</div><div class="text-xs text-gray-500">Ditolak</div></div>
+                    </div>
+                    <div class="mt-6 border-t pt-4"><div class="flex justify-between text-sm mb-2"><span>Absen tepat waktu</span><b id="adm-tepat">0</b></div><div class="flex justify-between text-sm"><span>Absen terlambat</span><b id="adm-terlambat">0</b></div></div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl border shadow-sm p-5 mb-6">
+                <div class="flex items-center justify-between mb-4"><div><h3 class="font-bold text-lg text-gray-800">Laporan Hari Kerja Karyawan</h3><p class="text-xs text-gray-500">Jumlah tanggal absen unik pada periode yang dipilih.</p></div></div>
+                <div class="overflow-x-auto"><table class="w-full text-sm admin-table"><thead><tr class="border-b text-left text-gray-500"><th class="p-3">No</th><th class="p-3">NIK</th><th class="p-3">Nama Karyawan</th><th class="p-3">Jabatan</th><th class="p-3 text-center">Hari Kerja / Hadir</th><th class="p-3 text-center">Tepat Waktu</th><th class="p-3 text-center">Terlambat</th><th class="p-3 text-center">Izin</th></tr></thead><tbody id="admin-laporan-body"></tbody></table></div>
+            </div>
+
+
+            <!-- MASTER KARYAWAN -->
+            <div class="admin-section-card p-5 mb-6">
+                <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 mb-4">
+                    <div>
+                        <h3 class="font-bold text-lg text-gray-800">Master Karyawan & QR ID Card</h3>
+                        <p class="text-xs text-gray-500">Gunakan QR Code yang sudah tercetak pada ID Card karyawan. Tidak perlu membuat atau mencetak QR baru.</p>
+                    </div>
+                    <button onclick="resetUserForm()" class="admin-small-btn bg-gray-100 text-gray-700">
+                        <i class="bi bi-plus-circle"></i> Karyawan Baru
+                    </button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                    <input type="hidden" id="user-id">
+                    <div><label class="text-xs text-gray-500">NIK / ID Karyawan *</label><input id="user-nik" class="w-full border rounded-lg p-2" placeholder="Contoh: 001"></div>
+                    <div><label class="text-xs text-gray-500">Nama Karyawan *</label><input id="user-nama" class="w-full border rounded-lg p-2" placeholder="Nama lengkap"></div>
+                    <div><label class="text-xs text-gray-500">PIN *</label><input id="user-pin" type="password" class="w-full border rounded-lg p-2" placeholder="PIN login"></div>
+                    <div><label class="text-xs text-gray-500">Jabatan *</label>
+                        <select id="user-jabatan" class="w-full border rounded-lg p-2">
+                            <option value="">-- Pilih Jabatan --</option>
+                            <option value="Pemucuk">Pemucuk</option>
+                            <option value="Petengen/Kasir">Petengen/Kasir</option>
+                            <option value="Penyarikan/Tata Usaha">Penyarikan/Tata Usaha</option>
+                            <option value="Kabag Perkreditan">Kabag Perkreditan</option>
+                            <option value="Kabag Dana">Kabag Dana</option>
+                            <option value="Kolektor">Kolektor</option>
+                        </select>
+                    </div>
+                    <div><label class="text-xs text-gray-500">Role</label><select id="user-role" class="w-full border rounded-lg p-2"><option value="karyawan">Karyawan</option><option value="admin">Admin</option></select></div>
+                    <div><label class="text-xs text-gray-500">QR ID Card / Kode QR <span class="text-gray-400">(kosong = pakai NIK)</span></label><input id="user-barcode" class="w-full border rounded-lg p-2" placeholder="Contoh: 001 / NIK sesuai QR ID Card"></div>
+                    <div class="lg:col-span-2"><label class="text-xs text-gray-500">Foto Karyawan</label>
+                        <div class="flex items-center gap-3">
+                            <div class="w-16 h-16 rounded-xl border bg-gray-100 overflow-hidden flex-shrink-0"><img id="user-photo-preview" class="w-full h-full object-cover hidden" alt="Foto karyawan"></div>
+                            <div class="flex-1">
+                                <input id="user-photo" type="file" accept="image/*" onchange="previewEmployeePhoto(this)" class="w-full border rounded-lg p-2 text-sm bg-white">
+                                <input type="hidden" id="user-photo-url">
+                                <p class="text-[11px] text-gray-400 mt-1">JPG/PNG. Foto dikompres otomatis sebelum disimpan ke Google Drive.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex flex-wrap gap-2 mt-3">
+                    <button onclick="saveEmployee()" class="admin-small-btn bg-navy text-white"><i class="bi bi-save"></i> Simpan Karyawan</button>
+                    <button onclick="scanEmployeeBarcode()" class="admin-small-btn bg-blue-100 text-blue-800"><i class="bi bi-qr-code-scan"></i> Scan QR ID Card</button>
+                    <button onclick="resetUserForm()" class="admin-small-btn bg-gray-100 text-gray-700">Bersihkan</button>
+                </div>
+                <div id="employee-barcode-reader" class="hidden mt-4 border rounded-xl p-2 bg-gray-50">
+                    <div id="employee-barcode-camera"></div>
+                    <div class="text-center mt-2"><button onclick="stopEmployeeBarcode()" class="text-red-600 text-sm">Tutup Scanner</button></div>
+                </div>
+                <div class="overflow-x-auto mt-5">
+                    <table class="w-full text-sm">
+                        <thead><tr class="border-b text-left text-gray-500"><th class="p-2">No</th><th class="p-2">NIK</th><th class="p-2">Foto</th><th class="p-2">Nama</th><th class="p-2">Jabatan</th><th class="p-2">QR ID Card</th><th class="p-2">Role</th><th class="p-2">Aksi</th></tr></thead>
+                        <tbody id="employee-list-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- LAPORAN ABSENSI BULANAN -->
+            <div class="admin-section-card p-5 mb-6">
+                <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 mb-4">
+                    <div>
+                        <h3 class="font-bold text-lg text-gray-800">Laporan Absensi Karyawan per Bulan</h3>
+                        <p class="text-xs text-gray-500">Pilih karyawan, periode, lalu cetak laporan untuk printer.</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2 no-print">
+                        <select id="report-karyawan" onchange="renderMonthlyReport()" class="border rounded-lg px-3 py-2 bg-white text-sm"></select>
+                        <select id="report-bulan" onchange="renderMonthlyReport()" class="border rounded-lg px-3 py-2 bg-white text-sm">
+                            <option value="0">Januari</option><option value="1">Februari</option><option value="2">Maret</option><option value="3">April</option>
+                            <option value="4">Mei</option><option value="5">Juni</option><option value="6">Juli</option><option value="7">Agustus</option>
+                            <option value="8">September</option><option value="9">Oktober</option><option value="10">November</option><option value="11">Desember</option>
+                        </select>
+                        <select id="report-tahun" onchange="renderMonthlyReport()" class="border rounded-lg px-3 py-2 bg-white text-sm"></select>
+                        <button onclick="printMonthlyReport()" class="admin-small-btn bg-green-600 text-white"><i class="bi bi-printer"></i> Cetak</button>
+                    </div>
+                </div>
+                <div id="print-area" class="border rounded-xl p-5 bg-white">
+                    <div class="text-center border-b pb-3 mb-4">
+                        <h2 class="text-xl font-bold">LPD DESA ADAT PESEDAHAN</h2>
+                        <h3 class="font-bold mt-1">LAPORAN ABSENSI KARYAWAN</h3>
+                        <p id="report-period-title" class="text-sm text-gray-600">-</p>
+                    </div>
+                    <div id="report-identity" class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm mb-4"></div>
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-2 mb-5">
+                        <div class="bg-blue-50 rounded-lg p-3"><div class="text-xs text-gray-500">Hari Hadir</div><b id="rep-hadir">0</b></div>
+                        <div class="bg-green-50 rounded-lg p-3"><div class="text-xs text-gray-500">Tepat Waktu</div><b id="rep-tepat">0</b></div>
+                        <div class="bg-yellow-50 rounded-lg p-3"><div class="text-xs text-gray-500">Terlambat</div><b id="rep-terlambat">0</b></div>
+                        <div class="bg-purple-50 rounded-lg p-3"><div class="text-xs text-gray-500">Izin</div><b id="rep-izin">0</b></div>
+                        <div class="bg-gray-100 rounded-lg p-3"><div class="text-xs text-gray-500">Hari Kerja</div><b id="rep-hari-kerja">0</b></div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm border-collapse">
+                            <thead><tr class="border-b-2 border-gray-300 text-left"><th class="p-2">No</th><th class="p-2">Tanggal</th><th class="p-2">Jam</th><th class="p-2">Status</th><th class="p-2">Keterangan</th></tr></thead>
+                            <tbody id="monthly-report-body"></tbody>
+                        </table>
+                    </div>
+                    <div class="grid grid-cols-2 gap-10 mt-12 text-center text-sm">
+                        <div>Mengetahui,<br>Pemucuk LPD Desa Adat Pesedahan<br><br><br><b>I NENGAH YASA</b></div>
+                        <div>Pesedahan, <span id="report-print-date"></span><br>Petugas Administrasi<br><br><br><b>I KOMANG GEDE SUANTARA, SE</b></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex border-b mb-5 text-sm">
+                <button onclick="switchAdminTab('tab-persetujuan')" id="btn-tab-persetujuan" class="px-5 py-3 font-bold text-navy border-b-2 border-navy">Persetujuan Izin <span id="badge-pending" class="ml-1 bg-red-500 text-white px-2 py-0.5 rounded-full text-xs">0</span></button>
+                <button onclick="switchAdminTab('tab-pengaturan')" id="btn-tab-pengaturan" class="px-5 py-3 text-gray-500">Pengaturan</button>
+            </div>
+            <div id="tab-persetujuan"><div id="admin-izin-list" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div></div>
+            <div id="tab-pengaturan" class="hidden"><div class="bg-white p-5 rounded-2xl border shadow-sm grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+                <div class="md:col-span-2 xl:col-span-5 border-b pb-4 mb-1">
+                    <div class="flex items-center gap-4 flex-wrap">
+                        <div class="w-20 h-20 rounded-xl border bg-gray-50 p-1 flex items-center justify-center overflow-hidden">
+                            <img id="admin-logo-preview" src="" alt="Logo aplikasi" class="w-full h-full object-contain">
+                        </div>
+                        <div class="flex-1 min-w-[240px]">
+                            <label class="text-sm font-bold text-navy block">Logo Aplikasi</label>
+                            <p class="text-xs text-gray-500 mb-2">Ganti logo langsung dari menu Admin. Tidak perlu mengubah kode atau URL logo.</p>
+                            <input type="file" id="admin-logo-file" accept="image/png,image/jpeg,image/webp" class="w-full border rounded-lg p-2 text-sm bg-white" onchange="previewAdminLogo(this)">
+                            <div class="flex gap-2 mt-2">
+                                <button type="button" onclick="saveAdminLogo()" class="bg-blue-700 hover:bg-blue-800 text-white px-4 py-2 rounded-lg text-sm font-bold"><i class="bi bi-image"></i> Simpan Logo</button>
+                                <button type="button" onclick="resetAdminLogoSelection()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-semibold">Batal</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div><label class="text-xs text-gray-500">Jam Masuk</label><input type="time" id="cfg-jam" class="w-full border rounded p-2"></div>
+                <div><label class="text-xs text-gray-500">Toleransi (Menit)</label><input type="number" id="cfg-tol" class="w-full border rounded p-2"></div>
+                <div><label class="text-xs text-gray-500">Latitude Kantor</label><input type="text" id="cfg-lat" class="w-full border rounded p-2"></div>
+                <div><label class="text-xs text-gray-500">Longitude Kantor</label><input type="text" id="cfg-lng" class="w-full border rounded p-2"></div>
+                <div><label class="text-xs text-gray-500">Radius (Meter)</label><input type="number" id="cfg-rad" class="w-full border rounded p-2"></div>
+                <button onclick="saveAdminSettings()" class="md:col-span-2 xl:col-span-5 bg-navy text-white font-bold py-3 rounded-lg">Simpan Pengaturan</button>
+            </div></div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+// ==========================================
+// 1. STATE & GLOBAL VARIABLES
+// ==========================================
+let db = {
+    users: [],
+    config: {},
+    logs: [],
+    izin: []
+};
+
+let currentUser = null;
+let currentView = 'view-login';
+
+const DEFAULT_APP_LOGO = 'https://drive.google.com/thumbnail?id=18Xafn6aFfRfyMePZvqxPdawAA-cANgxt&sz=w500';
+let pendingLogoData = '';
+let pendingLogoName = '';
+
+function getAppLogoSrc(rawUrl) {
+    const url = String(rawUrl || '').trim();
+    if (!url) return DEFAULT_APP_LOGO;
+    const driveMatch = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:[^#]*&)?id=)([A-Za-z0-9_-]+)/);
+    if (driveMatch && driveMatch[1]) return 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(driveMatch[1]) + '&sz=w500';
+    return url;
+}
+
+function applyAppLogo() {
+    const src = getAppLogoSrc(db && db.config ? db.config.logo_url : '');
+    ['app-logo-header','app-logo-login','app-logo-admin'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.src = src; el.style.display = ''; }
+    });
+    const preview = document.getElementById('admin-logo-preview');
+    if (preview) preview.src = src;
+}
+
+function previewAdminLogo(input) {
+    const file = input && input.files ? input.files[0] : null;
+    if (!file) return;
+    if (!file.type || !file.type.startsWith('image/')) {
+        Swal.fire('Format tidak sesuai', 'Silakan pilih file gambar PNG, JPG, atau WEBP.', 'warning');
+        input.value = ''; return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+        Swal.fire('File terlalu besar', 'Ukuran logo maksimal 5 MB.', 'warning');
+        input.value = ''; return;
+    }
+    pendingLogoName = file.name || ('logo-' + Date.now() + '.png');
+    const reader = new FileReader();
+    reader.onload = e => { pendingLogoData = e.target.result; const p=document.getElementById('admin-logo-preview'); if(p) p.src=pendingLogoData; };
+    reader.readAsDataURL(file);
+}
+
+function resetAdminLogoSelection() {
+    pendingLogoData = ''; pendingLogoName = '';
+    const input = document.getElementById('admin-logo-file');
+    if (input) input.value = '';
+    applyAppLogo();
+}
+
+function saveAdminLogo() {
+    if (!pendingLogoData) {
+        Swal.fire('Belum ada logo', 'Pilih file logo terlebih dahulu.', 'info');
+        return;
+    }
+    startLoading('Menyimpan Logo...');
+    if (typeof google === 'undefined') {
+        db.config.logo_url = pendingLogoData;
+        pendingLogoData = ''; pendingLogoName = '';
+        const input=document.getElementById('admin-logo-file'); if(input) input.value='';
+        applyAppLogo(); endLoading();
+        Swal.fire('Sukses', 'Logo aplikasi berhasil diganti.', 'success');
+        return;
+    }
+    google.script.run
+        .withSuccessHandler(res => {
+            endLoading();
+            if (res && res.status) {
+                db.config.logo_url = res.logoUrl || '';
+                pendingLogoData = ''; pendingLogoName = '';
+                const input=document.getElementById('admin-logo-file'); if(input) input.value='';
+                applyAppLogo();
+                Swal.fire('Sukses', 'Logo aplikasi berhasil diganti.', 'success');
+            } else {
+                Swal.fire('Gagal', (res && res.message) || 'Logo gagal disimpan.', 'error');
+            }
+        })
+        .withFailureHandler(err => { endLoading(); Swal.fire('Error', String(err), 'error'); })
+        .saveLogo(pendingLogoData, pendingLogoName);
+}
+
+// Variabel Validasi Absen
+let stateAbsen = {
+    lat: null,
+    lng: null,
+    distance: null,
+    inRadius: false,
+    photoBase64: null,
+    qrValid: false,
+    qrValue: ""
+};
+
+let stream = null; // Camera stream
+let html5QrcodeScanner = null;
+
+// ==========================================
+// 2. LIFECYCLE & DATA LOADING
+// ==========================================
+window.onload = () => {
+    startClock();
+    loadData();
+};
+
+function startLoading(text = "Memuat...") {
+    document.getElementById('loading-text').innerText = text;
+    document.getElementById('loading').classList.remove('hidden');
+}
+function endLoading() {
+    document.getElementById('loading').classList.add('hidden');
+}
+
+function loadData() {
+    startLoading("Sinkronisasi Database...");
+    
+    // Cek Mode Simulasi (Canvas/Local)
+    if (typeof google === 'undefined') {
+        console.log("Mode Simulasi Aktif");
+        setTimeout(() => {
+            // Dummy Data
+            db = {
+                users: [
+                    { NIK: "123", Nama: "Ahmad Karyawan", PIN: "123", Role: "karyawan", Jabatan: "Kolektor", Barcode: "123", Foto_URL: "" },
+                    { NIK: "999", Nama: "Budi Admin", PIN: "999", Role: "admin" }
+                ],
+                config: {
+                    jam_masuk: "07:30", toleransi: "15", 
+                    lat_kantor: "-8.650000", lng_kantor: "115.216667", radius: "10000000", // radius besar agar simulasi mudah
+                    qr_code: "LPD-PESEDAHAN-VALID"
+                },
+                logs: [
+                    { Tanggal: getTodayString(), NIK: "123", Nama: "Ahmad Karyawan", Jam: "07:25", Status_Kehadiran: "Tepat Waktu" }
+                ],
+                izin: [
+                    { ID: "IZN-1", Tgl_Mulai: getTodayString(), Jenis_Izin: "Sakit", Status_Approval: "Menunggu", Nama: "Ahmad Karyawan", NIK: "123" }
+                ]
+            };
+            applyAppLogo();
+            endLoading();
+        }, 800);
+    } else {
+        // Mode Production (GAS)
+        google.script.run
+            .withSuccessHandler(res => {
+                db = res;
+                applyAppLogo();
+                if(currentUser) refreshUI();
+                endLoading();
+            })
+            .withFailureHandler(err => {
+                Swal.fire("Error", "Gagal memuat data: " + err, "error");
+                endLoading();
+            })
+            .getAllData();
+    }
+}
+
+// ==========================================
+// 3. AUTHENTICATION & NAVIGATION
+// ==========================================
+function doLogin() {
+    const nik = document.getElementById('login-nik').value;
+    const pin = document.getElementById('login-pin').value;
+    
+    if(!nik || !pin) return Swal.fire("Oops", "NIK dan PIN wajib diisi!", "warning");
+
+    const user = db.users.find(u => u.NIK == nik && u.PIN == pin);
+    if(user) {
+        currentUser = user;
+        if (!currentUser.Barcode) currentUser.Barcode = currentUser.NIK || '';
+        document.getElementById('user-name-display').innerText = user.Nama;
+        document.getElementById('app-header').classList.remove('hidden');
+        
+        if(String(user.Role).toLowerCase() === 'admin') {
+            document.querySelector('.app-container').classList.add('admin-layout');
+            document.body.classList.add('admin-mode');
+            showView('view-admin');
+            renderAdminDashboard();
+        } else {
+            document.querySelector('.app-container').classList.remove('admin-layout');
+            document.body.classList.remove('admin-mode');
+            showView('view-dashboard');
+            renderDashboard();
+        }
+    } else {
+        Swal.fire("Gagal", "NIK atau PIN salah!", "error");
+    }
+}
+
+function logout() {
+    document.querySelector('.app-container').classList.remove('admin-layout');
+    currentUser = null;
+    document.getElementById('login-nik').value = "";
+    document.getElementById('login-pin').value = "";
+    document.getElementById('app-header').classList.add('hidden');
+    document.querySelector('.app-container').classList.remove('admin-layout');
+    document.body.classList.remove('admin-mode');
+    stopCamera();
+    stopQRScan();
+    showView('view-login');
+}
+
+function showView(viewId) {
+    const views = ['view-login', 'view-dashboard', 'view-absen', 'view-izin', 'view-admin'];
+    views.forEach(v => document.getElementById(v).classList.add('hidden'));
+    document.getElementById(viewId).classList.remove('hidden');
+    currentView = viewId;
+
+    if(viewId === 'view-absen') {
+        resetAbsenState();
+        getLocation();
+    } else {
+        stopCamera();
+        stopQRScan();
+    }
+}
+
+// ==========================================
+// 4. RENDER UI
+// ==========================================
+function refreshUI() {
+    if(!currentUser) return;
+    if(String(currentUser.Role).toLowerCase() === 'admin') renderAdminDashboard();
+    else renderDashboard();
+}
+
+function renderDashboard() {
+    // 1. Cek status absen hari ini
+    const today = getTodayString();
+    const myLog = db.logs.find(l => l.NIK == currentUser.NIK && l.Tanggal == today);
+    
+    const elStatus = document.getElementById('status-absen-hari-ini');
+    const elWaktu = document.getElementById('waktu-absen-hari-ini');
+    
+    if(myLog) {
+        elStatus.innerText = "Sudah Absen";
+        elStatus.className = "text-xl font-bold text-green-300";
+        elWaktu.innerText = `Jam: ${myLog.Jam} (${myLog.Status_Kehadiran})`;
+    } else {
+        elStatus.innerText = "Belum Absen";
+        elStatus.className = "text-xl font-bold text-gold";
+        elWaktu.innerText = "-";
+    }
+
+    // 2. Render Riwayat Presensi
+    const listHtml = db.logs
+        .filter(l => l.NIK == currentUser.NIK)
+        .slice(-5).reverse() // Ambil 5 terakhir
+        .map(l => `
+            <div class="bg-white p-3 rounded-lg border shadow-sm flex justify-between items-center">
+                <div>
+                    <div class="font-bold text-navy">${formatDate(l.Tanggal)}</div>
+                    <div class="text-xs text-gray-500">Jam: ${l.Jam}</div>
+                </div>
+                <div class="text-xs px-2 py-1 rounded ${l.Status_Kehadiran === 'Tepat Waktu' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">
+                    ${l.Status_Kehadiran}
+                </div>
+            </div>
+        `).join('') || '<div class="text-center text-sm text-gray-400">Belum ada riwayat</div>';
+    document.getElementById('riwayat-list').innerHTML = listHtml;
+
+    // 3. Render Riwayat Izin
+    const izinHtml = db.izin
+        .filter(i => i.NIK == currentUser.NIK)
+        .slice(-5).reverse()
+        .map(i => {
+            let color = i.Status_Approval === 'Disetujui' ? 'text-green-600' : (i.Status_Approval === 'Ditolak' ? 'text-red-600' : 'text-yellow-600');
+            return `
+            <div class="bg-white p-3 rounded-lg border shadow-sm">
+                <div class="flex justify-between mb-1">
+                    <span class="font-bold text-sm text-navy">${i.Jenis_Izin}</span>
+                    <span class="text-xs font-bold ${color}">${i.Status_Approval}</span>
+                </div>
+                <div class="text-xs text-gray-500">${formatDate(i.Tgl_Mulai)} s/d ${i.Tgl_Selesai ? formatDate(i.Tgl_Selesai) : '-'}</div>
+            </div>`
+        }).join('') || '<div class="text-center text-sm text-gray-400">Belum ada pengajuan</div>';
+    document.getElementById('riwayat-izin-list').innerHTML = izinHtml;
+}
+
+// ==========================================
+// 5. GEOFENCING (GPS)
+// ==========================================
+function getLocation() {
+    const elText = document.getElementById('gps-text');
+    const elInd = document.getElementById('gps-indicator');
+    elText.innerText = "Mencari lokasi...";
+    elInd.className = "w-4 h-4 rounded-full bg-yellow-400 animate-pulse";
+
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                stateAbsen.lat = position.coords.latitude;
+                stateAbsen.lng = position.coords.longitude;
+                
+                // Hitung jarak (Haversine)
+                const latKantor = parseFloat(db.config.lat_kantor);
+                const lngKantor = parseFloat(db.config.lng_kantor);
+                const radiusMax = parseInt(db.config.radius);
+                
+                stateAbsen.distance = calculateDistance(stateAbsen.lat, stateAbsen.lng, latKantor, lngKantor);
+                stateAbsen.inRadius = stateAbsen.distance <= radiusMax;
+
+                elText.innerHTML = `Jarak: <b>${Math.round(stateAbsen.distance)}m</b> (Max: ${radiusMax}m)`;
+                
+                if(stateAbsen.inRadius) {
+                    elInd.className = "w-4 h-4 rounded-full bg-green-500";
+                    updateChecklist('lokasi', true);
+                } else {
+                    elInd.className = "w-4 h-4 rounded-full bg-red-500";
+                    updateChecklist('lokasi', false);
+                    Swal.fire("Di Luar Radius", `Anda berada ${Math.round(stateAbsen.distance)}m dari kantor. Radius maksimal ${radiusMax}m.`, "warning");
+                }
+                checkAllValidations();
+            },
+            (error) => {
+                elText.innerText = "Akses GPS ditolak/Gagal";
+                elInd.className = "w-4 h-4 rounded-full bg-red-500";
+                updateChecklist('lokasi', false);
+                Swal.fire("Error GPS", "Mohon izinkan akses lokasi pada browser Anda.", "error");
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+    } else {
+        Swal.fire("Error", "Browser tidak mendukung GPS", "error");
+    }
+}
+
+// Haversine formula
+function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371e3; // Radius bumi meter
+    const p1 = lat1 * Math.PI/180;
+    const p2 = lat2 * Math.PI/180;
+    const dp = (lat2-lat1) * Math.PI/180;
+    const dl = (lon2-lon1) * Math.PI/180;
+
+    const a = Math.sin(dp/2) * Math.sin(dp/2) +
+              Math.cos(p1) * Math.cos(p2) *
+              Math.sin(dl/2) * Math.sin(dl/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+}
+
+// ==========================================
+// 6. KAMERA & SELFIE
+// ==========================================
+async function cameraPermissionState() {
+    try {
+        if (navigator.permissions && navigator.permissions.query) {
+            const p = await navigator.permissions.query({name:'camera'});
+            return p.state;
+        }
+    } catch(e) {}
+    return 'unknown';
+}
+
+function setCameraStatus(msg) {
+    const el = document.getElementById('camera-status');
+    if (el) el.textContent = msg || '';
+}
+
+function cameraErrorMessage(err) {
+    const n = err && err.name ? err.name : 'UNKNOWN';
+    const map = {
+        NotAllowedError: 'Akses kamera ditolak/diblokir browser. Periksa izin Kamera untuk Chrome dan E-ABSEN KARYAWAN.',
+        NotFoundError: 'Kamera tidak ditemukan pada perangkat.',
+        NotReadableError: 'Kamera sedang digunakan aplikasi lain. Tutup Kamera/WhatsApp/Meet lalu coba lagi.',
+        OverconstrainedError: 'Mode kamera tidak cocok dengan perangkat. Akan dicoba mode sederhana.',
+        SecurityError: 'Browser memblokir kamera karena keamanan. Pastikan URL E-ABSEN KARYAWAN menggunakan HTTPS.',
+        AbortError: 'Pembukaan kamera dibatalkan oleh perangkat/browser.'
+    };
+    return map[n] || 'Kamera tidak dapat dibuka. Gunakan tombol "Kamera HP" sebagai alternatif.';
+}
+
+async function startCamera() {
+    const video = document.getElementById('video-preview');
+    const overlay = document.getElementById('camera-overlay');
+    const btn = document.getElementById('btn-take-photo');
+    const preview = document.getElementById('photo-preview');
+
+    setCameraStatus('Memeriksa kamera...');
+
+    if (!window.isSecureContext) {
+        Swal.fire('Kamera membutuhkan HTTPS',
+            'Buka E-ABSEN KARYAWAN melalui URL Web App Google Apps Script yang diawali https://.',
+            'error');
+        return;
+    }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setCameraStatus('Kamera langsung tidak tersedia.');
+        Swal.fire({
+            icon:'warning',
+            title:'Kamera langsung tidak tersedia',
+            html:'Browser tidak menyediakan akses kamera langsung.<br><br>Gunakan <b>Kamera HP</b> untuk mengambil selfie.',
+            confirmButtonText:'Kamera HP',
+            showCancelButton:true,
+            cancelButtonText:'Tutup'
+        }).then(r => { if(r.isConfirmed) openAndroidCameraFallback(); });
+        return;
+    }
+
+    stopCamera();
+
+    const perm = await cameraPermissionState();
+    if (perm === 'denied') {
+        setCameraStatus('Izin kamera berstatus DENIED.');
+        Swal.fire({
+            icon:'warning',
+            title:'Izin Kamera Masih Diblokir',
+            html:'Chrome Android → ikon pengaturan di sebelah alamat → Izin → Kamera → Izinkan, kemudian muat ulang halaman.<br><br>Jika tetap gagal, gunakan <b>Kamera HP</b>.',
+            confirmButtonText:'Mengerti'
+        });
+        return;
+    }
+
+    const attempts = [
+        {video:{facingMode:{ideal:'user'}},audio:false},
+        {video:{facingMode:'user'},audio:false},
+        {video:true,audio:false}
+    ];
+    let lastError = null;
+
+    for (const constraints of attempts) {
+        try {
+            setCameraStatus('Meminta izin kamera...');
+            stream = await navigator.mediaDevices.getUserMedia(constraints);
+            if (!stream.getVideoTracks().length) throw new Error('Tidak ada video track.');
+
+            video.srcObject = stream;
+            video.muted = true;
+            video.autoplay = true;
+            video.playsInline = true;
+            video.setAttribute('playsinline','');
+            video.setAttribute('webkit-playsinline','');
+
+            await new Promise(resolve => {
+                if (video.readyState >= 2) return resolve();
+                video.onloadedmetadata = () => resolve();
+                setTimeout(resolve, 1500);
+            });
+            try { await video.play(); } catch(e) {}
+
+            video.classList.remove('hidden');
+            overlay.classList.add('hidden');
+            preview.classList.add('hidden');
+
+            btn.disabled = false;
+            btn.innerHTML = "<i class='bi bi-camera-fill'></i> Ambil Foto";
+            btn.className = "bg-blue-500 text-white py-3 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-blue-600 transition";
+            setCameraStatus('Kamera aktif.');
+            return;
+        } catch(err) {
+            lastError = err;
+            stopCamera();
+            if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) break;
+        }
+    }
+
+    setCameraStatus('Kamera langsung gagal. Gunakan Kamera HP.');
+    Swal.fire({
+        icon:'warning',
+        title:'Kamera Belum Bisa Dibuka',
+        html:cameraErrorMessage(lastError) +
+             '<br><br><small>Kode: ' + String(lastError && lastError.name || 'UNKNOWN') + '</small>',
+        showCancelButton:true,
+        confirmButtonText:'Kamera HP',
+        cancelButtonText:'Tutup'
+    }).then(r => { if(r.isConfirmed) openAndroidCameraFallback(); });
+}
+
+function openAndroidCameraFallback() {
+    const input = document.getElementById('android-camera-input');
+    if (!input) {
+        Swal.fire('Fallback Kamera','Tombol kamera HP belum tersedia.','error');
+        return;
+    }
+    input.value = '';
+    input.click();
+}
+
+function handleAndroidCameraFile(input) {
+    const file = input && input.files && input.files[0];
+    if (!file) return;
+
+    if (!file.type || !file.type.startsWith('image/')) {
+        Swal.fire('File Tidak Valid','Silakan ambil foto dari kamera HP.','warning');
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+            const canvas = document.getElementById('canvas-capture');
+            const maxWidth = 720;
+            const scale = Math.min(1, maxWidth / img.width);
+
+            canvas.width = Math.max(1, Math.round(img.width * scale));
+            canvas.height = Math.max(1, Math.round(img.height * scale));
+
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+            stateAbsen.photoBase64 = canvas.toDataURL('image/jpeg', 0.75);
+            finishPhotoUI();
+            setCameraStatus('Foto dari Kamera HP berhasil diambil.');
+        };
+        img.onerror = function() {
+            Swal.fire('Foto Gagal','Foto tidak dapat diproses.','error');
+        };
+        img.src = e.target.result;
+    };
+    reader.onerror = function() {
+        Swal.fire('Foto Gagal','Gagal membaca hasil kamera HP.','error');
+    };
+    reader.readAsDataURL(file);
+}
+
+function takePhoto() {
+    const video = document.getElementById('video-preview');
+
+    if (!stream || !stream.active || video.readyState < 2) {
+        Swal.fire('Kamera Belum Siap', 'Buka kamera dan tunggu sampai gambar selfie tampil sebelum mengambil foto.', 'warning');
+        return;
+    }
+
+    const canvas = document.getElementById('canvas-capture');
+    const context = canvas.getContext('2d');
+
+    // Gunakan ukuran mengikuti video agar foto tidak terdistorsi.
+    const width = video.videoWidth || 720;
+    const height = video.videoHeight || 960;
+    const maxWidth = 720;
+    const scale = Math.min(1, maxWidth / width);
+    canvas.width = Math.round(width * scale);
+    canvas.height = Math.round(height * scale);
+
+    // Preview selfie ditampilkan mirror, tetapi foto juga dibuat mirror agar sesuai preview.
+    context.save();
+    context.translate(canvas.width, 0);
+    context.scale(-1, 1);
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    context.restore();
+
+    stateAbsen.photoBase64 = canvas.toDataURL('image/jpeg', 0.75);
+
+    if (!stateAbsen.photoBase64 || stateAbsen.photoBase64.length < 100) {
+        Swal.fire('Foto Gagal', 'Foto selfie tidak berhasil dibuat. Silakan buka kamera dan coba lagi.', 'error');
+        return;
+    }
+
+    finishPhotoUI();
+}
+
+function finishPhotoUI() {
+    const video = document.getElementById('video-preview');
+    const imgPreview = document.getElementById('photo-preview');
+    
+    stopCamera();
+    video.classList.add('hidden');
+    imgPreview.src = stateAbsen.photoBase64;
+    imgPreview.classList.remove('hidden');
+    
+    updateChecklist('foto', true);
+    checkAllValidations();
+}
+
+function stopCamera() {
+    if(stream) {
+        stream.getTracks().forEach(track => track.stop());
+    }
+}
+
+// ==========================================
+// 7. QR CODE SCANNER
+// ==========================================
+async function startQRScan() {
+    const container = document.getElementById('qr-container');
+    const reader = document.getElementById('qr-reader');
+    const bypass = document.getElementById('btn-bypass-qr');
+
+    // Pastikan kamera selfie sudah dilepas sebelum QR scanner memakai kamera.
+    stopCamera();
+    container.classList.remove('hidden');
+    reader.innerHTML = '<div class="text-center p-4 text-gray-500"><i class="bi bi-camera-video text-2xl"></i><br>Menyiapkan kamera QR...</div>';
+
+    if (typeof google === 'undefined') {
+        bypass.classList.remove('hidden');
+    } else {
+        bypass.classList.add('hidden');
+    }
+
+    if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        Swal.fire('QR Tidak Bisa Dibuka', 'Akses kamera membutuhkan HTTPS dan browser yang mendukung kamera.', 'error');
+        return;
+    }
+
+    try {
+        if (html5QrcodeScanner) {
+            try { await html5QrcodeScanner.clear(); } catch(e) {}
+            html5QrcodeScanner = null;
+        }
+
+        html5QrcodeScanner = new Html5Qrcode('qr-reader');
+
+        // Coba kamera belakang melalui daftar kamera yang benar-benar tersedia.
+        let cameraConfig = { facingMode: { ideal: 'environment' } };
+        try {
+            const cameras = await Html5Qrcode.getCameras();
+            if (cameras && cameras.length) {
+                const backCamera = cameras.find(c => /back|rear|environment|belakang/i.test(c.label));
+                cameraConfig = { deviceId: { exact: (backCamera || cameras[0]).id } };
+            }
+        } catch (cameraListErr) {
+            // Browser tetap dicoba dengan facingMode.
+        }
+
+        reader.innerHTML = '';
+        await html5QrcodeScanner.start(
+            cameraConfig,
+            { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
+            (decodedText) => { handleQRSuccess(decodedText); },
+            (errorMessage) => { /* frame tanpa QR diabaikan */ }
+        );
+
+    } catch (err) {
+        try {
+            if (html5QrcodeScanner) await html5QrcodeScanner.clear();
+        } catch(e) {}
+        html5QrcodeScanner = null;
+
+        let pesan = 'Gagal membuka kamera untuk scan QR.';
+        if (err && (err.name === 'NotAllowedError' || String(err).includes('Permission'))) {
+            pesan = 'Izin kamera ditolak. Izinkan kamera pada browser, lalu tekan Scan QR lagi.';
+        } else if (err && err.name === 'NotFoundError') {
+            pesan = 'Kamera tidak ditemukan pada perangkat ini.';
+        } else if (err && err.name === 'NotReadableError') {
+            pesan = 'Kamera sedang dipakai aplikasi lain. Tutup aplikasi kamera lain lalu coba lagi.';
+        } else if (err && err.message) {
+            pesan += '<br><small>' + err.message + '</small>';
+        }
+
+        Swal.fire({
+            icon: 'error',
+            title: 'Scan QR Gagal',
+            html: pesan,
+            confirmButtonText: 'OK'
+        });
+    }
+}
+
+function normalizeQrValue(value) {
+    return String(value ?? '').trim();
+}
+
+function handleQRSuccess(decodedText) {
+    stopQRScan();
+
+    const scanned = normalizeQrValue(decodedText);
+    const myNik = normalizeQrValue(currentUser && currentUser.NIK);
+    const myQr = normalizeQrValue(currentUser && currentUser.Barcode);
+
+    // QR ID Card lama dibuat dari nilai B2. Umumnya B2 = NIK.
+    // Jadi QR yang sama dengan NIK atau QR/Barcode yang tersimpan pada Users diterima.
+    const validQr = scanned && (scanned === myNik || (myQr && scanned === myQr));
+
+    if(validQr) {
+        stateAbsen.qrValid = true;
+        stateAbsen.qrValue = scanned;
+        updateChecklist('qr', true);
+        Swal.fire({
+            toast: true,
+            position: 'top',
+            icon: 'success',
+            title: 'QR ID Card Valid!',
+            text: 'ID Card cocok dengan akun Anda.',
+            showConfirmButton: false,
+            timer: 2200
+        });
+        checkAllValidations();
+    } else {
+        stateAbsen.qrValid = false;
+        stateAbsen.qrValue = "";
+        updateChecklist('qr', false);
+        Swal.fire(
+            "QR ID Card Tidak Sesuai",
+            "QR yang dipindai bukan QR ID Card untuk akun karyawan yang sedang login.",
+            "error"
+        );
+        checkAllValidations();
+    }
+}
+
+async function stopQRScan() {
+    if(html5QrcodeScanner) {
+        try { await html5QrcodeScanner.stop(); } catch(e) {}
+        try { await html5QrcodeScanner.clear(); } catch(e) {}
+        html5QrcodeScanner = null;
+    }
+    document.getElementById('qr-container').classList.add('hidden');
+    document.getElementById('qr-reader').innerHTML = '';
+}
+
+// ==========================================
+// 8. LOGIKA VALIDASI & SUBMIT ABSEN
+// ==========================================
+function updateChecklist(type, isValid) {
+    const el = document.getElementById(`check-${type}`);
+    if(isValid) {
+        el.innerHTML = `<i class="bi bi-check-circle-fill text-green-500"></i> ${el.innerText.trim()}`;
+        el.className = "flex items-center gap-2 mb-2 font-semibold text-green-700";
+    } else {
+        el.innerHTML = `<i class="bi bi-circle text-gray-300"></i> ${el.innerText.replace("✔","").trim()}`;
+        el.className = "flex items-center gap-2 mb-2 text-gray-500";
+    }
+}
+
+function checkAllValidations() {
+    const btnSubmit = document.getElementById('btn-submit-absen');
+    
+    // Bypass GPS untuk simulasi jika sulit
+    let isGpsValid = stateAbsen.inRadius;
+    if (typeof google === 'undefined') isGpsValid = true; // Permudah simulasi
+    
+    if(isGpsValid && stateAbsen.photoBase64 && stateAbsen.qrValid) {
+        btnSubmit.disabled = false;
+        btnSubmit.className = "w-full bg-green-500 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-green-600 transition animate-bounce";
+    } else {
+        btnSubmit.disabled = true;
+        btnSubmit.className = "w-full bg-gray-400 text-white font-bold py-4 rounded-xl shadow-lg transition";
+    }
+}
+
+function resetAbsenState() {
+    stateAbsen = { lat: null, lng: null, distance: null, inRadius: false, photoBase64: null, qrValid: false, qrValue: "" };
+    updateChecklist('lokasi', false);
+    updateChecklist('foto', false);
+    updateChecklist('qr', false);
+    
+    document.getElementById('photo-preview').classList.add('hidden');
+    document.getElementById('camera-overlay').classList.remove('hidden');
+    document.getElementById('btn-take-photo').disabled = true;
+    document.getElementById('btn-take-photo').className = "bg-gray-300 text-gray-500 py-3 rounded-lg font-bold flex items-center justify-center gap-2";
+    
+    checkAllValidations();
+}
+
+function submitAbsen() {
+    startLoading("Mengirim Data Absensi...");
+    
+    const now = new Date();
+    const curTimeStr = now.toLocaleTimeString('id-ID', {hour: '2-digit', minute:'2-digit', hour12: false});
+    
+    // Cek Keterlambatan
+    const jmMasuk = db.config.jam_masuk; // ex: 07:30
+    const tol = parseInt(db.config.toleransi); // ex: 15
+    
+    const timeMasuk = parseTime(jmMasuk);
+    timeMasuk.setMinutes(timeMasuk.getMinutes() + tol); // Batas toleransi
+    
+    let statusHadir = "Tepat Waktu";
+    if (now > timeMasuk) {
+        statusHadir = "Terlambat";
+    }
+
+    const payload = {
+        nik: currentUser.NIK,
+        nama: currentUser.Nama,
+        tanggal: getTodayString(),
+        jam: curTimeStr,
+        jarak: Math.round(stateAbsen.distance || 0),
+        statusKehadiran: statusHadir,
+        photoBase64: stateAbsen.photoBase64,
+        qrValue: stateAbsen.qrValue
+    };
+
+    if (typeof google === 'undefined') {
+        setTimeout(() => {
+            db.logs.push(payload);
+            endLoading();
+            Swal.fire("Berhasil", "Absen Masuk Berhasil! (" + statusHadir + ")", "success").then(() => {
+                showView('view-dashboard');
+                renderDashboard();
+            });
+        }, 1000);
+    } else {
+        google.script.run
+            .withSuccessHandler(res => {
+                if(res.status) {
+                    Swal.fire("Berhasil", res.message, "success").then(() => { loadData(); showView('view-dashboard'); });
+                } else {
+                    Swal.fire("Gagal", res.message, "warning");
+                    endLoading();
+                }
+            })
+            .withFailureHandler(err => { Swal.fire("Error", String(err), "error"); endLoading(); })
+            .saveCheckIn(payload);
+    }
+}
+
+// ==========================================
+// 9. PENGAJUAN IZIN
+// ==========================================
+function submitIzin() {
+    const jenis = document.getElementById('izin-jenis').value;
+    const mulai = document.getElementById('izin-mulai').value;
+    const selesai = document.getElementById('izin-selesai').value;
+    const ket = document.getElementById('izin-keterangan').value;
+    const fileInput = document.getElementById('izin-file');
+
+    if(!jenis || !mulai || ket.length < 10) {
+        return Swal.fire("Peringatan", "Lengkapi jenis, tanggal mulai, dan keterangan minimal 10 karakter.", "warning");
+    }
+
+    startLoading("Mengunggah Pengajuan...");
+
+    let fileBase64 = null;
+    if(fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            fileBase64 = e.target.result;
+            sendIzinPayload(jenis, mulai, selesai, ket, fileBase64);
+        };
+        reader.readAsDataURL(file);
+    } else {
+        sendIzinPayload(jenis, mulai, selesai, ket, null);
+    }
+}
+
+function sendIzinPayload(jenis, mulai, selesai, ket, fileBase64) {
+    const payload = {
+        nik: currentUser.NIK,
+        nama: currentUser.Nama,
+        jenis: jenis,
+        tglMulai: mulai,
+        tglSelesai: selesai,
+        keterangan: ket,
+        fileBase64: fileBase64
+    };
+
+    if (typeof google === 'undefined') {
+        setTimeout(() => {
+            db.izin.push({
+                ID: "IZN-"+Date.now(), NIK: payload.nik, Nama: payload.nama, Jenis_Izin: payload.jenis,
+                Tgl_Mulai: payload.tglMulai, Tgl_Selesai: payload.tglSelesai, Status_Approval: "Menunggu"
+            });
+            endLoading();
+            Swal.fire("Terkirim", "Pengajuan izin berhasil dikirim", "success").then(() => {
+                document.getElementById('izin-jenis').value = '';
+                document.getElementById('izin-mulai').value = '';
+                document.getElementById('izin-selesai').value = '';
+                document.getElementById('izin-keterangan').value = '';
+                document.getElementById('izin-file').value = '';
+                showView('view-dashboard');
+                renderDashboard();
+            });
+        }, 1000);
+    } else {
+        google.script.run
+            .withSuccessHandler(res => {
+                Swal.fire("Sukses", res.message, "success").then(() => { loadData(); showView('view-dashboard'); });
+            })
+            .withFailureHandler(err => { Swal.fire("Error", String(err), "error"); endLoading(); })
+            .saveLeave(payload);
+    }
+}
+
+
+// ==========================================
+// 10A. MASTER KARYAWAN & LAPORAN BULANAN
+// ==========================================
+let employeeBarcodeScanner = null;
+
+function adminYears(selectId) {
+    const el = document.getElementById(selectId);
+    if (!el || el.options.length) return;
+    const now = new Date().getFullYear();
+    for(let y = now - 2; y <= now + 2; y++) {
+        const o = document.createElement('option');
+        o.value = y; o.textContent = y;
+        if(y === now) o.selected = true;
+        el.appendChild(o);
+    }
+}
+
+function populateEmployeeControls() {
+    const sel = document.getElementById('report-karyawan');
+    if(!sel) return;
+    const old = sel.value;
+    sel.innerHTML = '<option value="">-- Semua / Pilih Karyawan --</option>';
+    (db.users || []).filter(u => String(u.Role || '').toLowerCase() !== 'admin').forEach(u => {
+        const o = document.createElement('option');
+        o.value = String(u.NIK || '');
+        o.textContent = `${u.NIK || ''} - ${u.Nama || ''}`;
+        sel.appendChild(o);
+    });
+    if(old) sel.value = old;
+    adminYears('report-tahun');
+    const now = new Date();
+    if(document.getElementById('report-bulan')) document.getElementById('report-bulan').value = now.getMonth();
+}
+
+function getEmployeePhotoSrc(rawUrl) {
+    const url = String(rawUrl || '').trim();
+    if (!url) return '';
+    // Link Drive jenis /file/d/ID/view atau open?id=ID perlu diubah
+    // menjadi URL gambar agar dapat ditampilkan di elemen <img>.
+    const driveMatch = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:[^#]*&)?id=)([A-Za-z0-9_-]+)/);
+    if (driveMatch && driveMatch[1]) {
+        return 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(driveMatch[1]) + '&sz=w240';
+    }
+    return url;
+}
+
+function renderEmployeeList() {
+    const body = document.getElementById('employee-list-body');
+    if(!body) return;
+    const users = (db.users || []).filter(u => String(u.Role || '').toLowerCase() !== 'admin');
+    body.innerHTML = users.length ? users.map((u,i) => {
+        const photoSrc = getEmployeePhotoSrc(u.Foto_URL || u.PhotoURL || u.PhotoUrl || '');
+        const photoCell = `<div class="w-10 h-10 rounded-lg bg-gray-100 border overflow-hidden flex items-center justify-center">
+            ${photoSrc ? `<img src="${escHtml(photoSrc)}" alt="Foto ${escHtml(u.Nama || 'karyawan')}" class="w-full h-full object-cover" onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.classList.remove('hidden')">` : ''}
+            <div class="w-full h-full ${photoSrc ? 'hidden' : ''} flex items-center justify-center text-gray-400"><i class="bi bi-person"></i></div>
+        </div>`;
+        return `
+        <tr class="border-b hover:bg-gray-50">
+            <td class="p-2">${i+1}</td><td class="p-2">${escHtml(u.NIK)}</td>
+            <td class="p-2">${photoCell}</td>
+            <td class="p-2 font-semibold">${escHtml(u.Nama)}</td>
+            <td class="p-2">${escHtml(u.Jabatan || '-')}</td><td class="p-2 font-mono">${escHtml(u.Barcode || u.NIK || '-')}</td><td class="p-2">${escHtml(u.Role || 'karyawan')}</td>
+            <td class="p-2"><button onclick="editEmployee('${escAttr(u.ID)}')" class="text-blue-700 mr-3"><i class="bi bi-pencil"></i> Edit</button>
+            <button onclick="deleteEmployee('${escAttr(u.ID)}')" class="text-red-600"><i class="bi bi-trash"></i> Hapus</button></td>
+        </tr>`;
+    }).join('') : '<tr><td colspan="8" class="p-4 text-center text-gray-500">Belum ada karyawan.</td></tr>';
+}
+
+function escHtml(v){ return String(v ?? '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }
+function escAttr(v){ return String(v ?? '').replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+
+function resetUserForm() {
+    ['user-id','user-nik','user-nama','user-pin','user-jabatan','user-barcode','user-photo-url'].forEach(id => { const e=document.getElementById(id); if(e) e.value=''; });
+    const role=document.getElementById('user-role'); if(role) role.value='karyawan';
+    const jabatan=document.getElementById('user-jabatan'); if(jabatan) jabatan.value='';
+    const photo=document.getElementById('user-photo'); if(photo) photo.value='';
+    const photoUrl=document.getElementById('user-photo-url'); if(photoUrl) photoUrl.value='';
+    const photoPreview=document.getElementById('user-photo-preview'); if(photoPreview){photoPreview.src='';photoPreview.classList.add('hidden');}
+    window.employeePhotoBase64=''; window.employeePhotoFileName='';
+}
+
+function editEmployee(id) {
+    const u = (db.users || []).find(x => String(x.ID) === String(id));
+    if(!u) return;
+    document.getElementById('user-id').value = u.ID || '';
+    document.getElementById('user-nik').value = u.NIK || '';
+    document.getElementById('user-nama').value = u.Nama || '';
+    document.getElementById('user-pin').value = u.PIN || '';
+    document.getElementById('user-role').value = u.Role || 'karyawan';
+    document.getElementById('user-jabatan').value = u.Jabatan || '';
+    document.getElementById('user-barcode').value = u.Barcode || '';
+    document.getElementById('user-photo-url').value = u.Foto_URL || '';
+    const p=document.getElementById('user-photo-preview'); if(p){ if(u.Foto_URL){p.src=getEmployeePhotoSrc(u.Foto_URL);p.classList.remove('hidden');} else {p.src='';p.classList.add('hidden');} }
+    document.getElementById('user-photo').value = '';
+    window.scrollTo({top: document.getElementById('user-nik').getBoundingClientRect().top + window.scrollY - 120, behavior:'smooth'});
+}
+
+function previewEmployeePhoto(input) {
+    const file = input && input.files ? input.files[0] : null;
+    if (!file) return;
+    if (!file.type || !file.type.startsWith('image/')) {
+        input.value = '';
+        return Swal.fire('Format Tidak Sesuai','Silakan pilih file foto JPG/PNG.','warning');
+    }
+    if (file.size > 5 * 1024 * 1024) {
+        input.value = '';
+        return Swal.fire('Foto Terlalu Besar','Maksimal ukuran foto 5 MB.','warning');
+    }
+
+    const reader = new FileReader();
+    reader.onload = e => {
+        const img = new Image();
+        img.onload = () => {
+            const max = 700;
+            const scale = Math.min(1, max / Math.max(img.width, img.height));
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(img.width * scale));
+            canvas.height = Math.max(1, Math.round(img.height * scale));
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            window.employeePhotoBase64 = canvas.toDataURL('image/jpeg', 0.82);
+            window.employeePhotoFileName = file.name.replace(/[^A-Za-z0-9._-]/g,'_');
+            const preview = document.getElementById('user-photo-preview');
+            preview.src = window.employeePhotoBase64;
+            preview.classList.remove('hidden');
+        };
+        img.onerror = () => Swal.fire('Foto Gagal','File foto tidak dapat dibaca.','error');
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function saveEmployee() {
+    const payload = {
+        ID: document.getElementById('user-id').value.trim(),
+        NIK: document.getElementById('user-nik').value.trim(),
+        Nama: document.getElementById('user-nama').value.trim(),
+        PIN: document.getElementById('user-pin').value.trim(),
+        Role: document.getElementById('user-role').value,
+        Jabatan: document.getElementById('user-jabatan').value,
+        Barcode: document.getElementById('user-barcode').value.trim(),
+        PhotoURL: document.getElementById('user-photo-url').value.trim(),
+        PhotoBase64: window.employeePhotoBase64 || '',
+        PhotoFileName: window.employeePhotoFileName || ''
+    };
+    if(!payload.NIK || !payload.Nama || !payload.PIN) return Swal.fire('Peringatan','NIK, nama, dan PIN wajib diisi.','warning');
+    if(payload.Role !== 'admin' && !payload.Jabatan) return Swal.fire('Peringatan','Jabatan karyawan wajib dipilih.','warning');
+    if(typeof google === 'undefined') {
+        const idx = db.users.findIndex(u => String(u.ID) === String(payload.ID));
+        if(idx >= 0) db.users[idx] = {...db.users[idx], ...payload};
+        else db.users.push({...payload, ID:'U'+Date.now()});
+        resetUserForm(); renderEmployeeList(); populateEmployeeControls();
+        return Swal.fire('Berhasil','Data karyawan tersimpan.','success');
+    }
+    startLoading('Menyimpan karyawan...');
+    google.script.run.withSuccessHandler(res => {
+        endLoading();
+        if(res.status){ Swal.fire('Berhasil',res.message,'success'); loadData(); resetUserForm(); }
+        else Swal.fire('Gagal',res.message,'warning');
+    }).withFailureHandler(err => { endLoading(); Swal.fire('Error',String(err),'error'); }).saveUser(payload);
+}
+
+function deleteEmployee(id) {
+    const u = (db.users || []).find(x => String(x.ID) === String(id));
+    if(!u) return;
+    Swal.fire({title:'Hapus karyawan?',text:`${u.Nama} (${u.NIK}) akan dihapus dari akun login.`,icon:'warning',showCancelButton:true,confirmButtonText:'Hapus',cancelButtonText:'Batal'})
+    .then(r => {
+        if(!r.isConfirmed) return;
+        if(typeof google === 'undefined') { db.users = db.users.filter(x=>String(x.ID)!==String(id)); renderEmployeeList(); populateEmployeeControls(); return; }
+        startLoading('Menghapus karyawan...');
+        google.script.run.withSuccessHandler(res=>{endLoading(); if(res.status){Swal.fire('Berhasil',res.message,'success');loadData();}else Swal.fire('Gagal',res.message,'warning');})
+        .withFailureHandler(err=>{endLoading();Swal.fire('Error',String(err),'error');}).deleteUser(id);
+    });
+}
+
+async function scanEmployeeBarcode() {
+    const box=document.getElementById('employee-barcode-reader');
+    box.classList.remove('hidden');
+    try {
+        if(employeeBarcodeScanner) { try{await employeeBarcodeScanner.clear();}catch(e){} }
+        employeeBarcodeScanner = new Html5Qrcode('employee-barcode-camera');
+        const cams = await Html5Qrcode.getCameras();
+        const cam = cams && cams.length ? cams[0].id : {facingMode:{ideal:'environment'}};
+        await employeeBarcodeScanner.start(cam,{fps:10,qrbox:{width:280,height:120}},
+            text => {
+                document.getElementById('user-barcode').value = text;
+                stopEmployeeBarcode();
+                Swal.fire({toast:true,position:'top',icon:'success',title:'QR ID Card terbaca',showConfirmButton:false,timer:1400});
+            }, ()=>{});
+    } catch(err) {
+        stopEmployeeBarcode();
+        Swal.fire('Scanner QR ID Card Gagal','Pastikan aplikasi menggunakan HTTPS dan izin kamera diberikan. Anda juga dapat mengetik/paste nilai QR lama secara manual.','error');
+    }
+}
+async function stopEmployeeBarcode() {
+    if(employeeBarcodeScanner){ try{await employeeBarcodeScanner.stop();}catch(e){} try{await employeeBarcodeScanner.clear();}catch(e){} employeeBarcodeScanner=null; }
+    const box=document.getElementById('employee-barcode-reader'); if(box) box.classList.add('hidden');
+}
+
+function renderMonthlyReport() {
+    const nik = document.getElementById('report-karyawan')?.value || '';
+    const bulan = parseInt(document.getElementById('report-bulan')?.value ?? new Date().getMonth());
+    const tahun = parseInt(document.getElementById('report-tahun')?.value ?? new Date().getFullYear());
+    const users = (db.users||[]).filter(u=>String(u.Role||'').toLowerCase()!=='admin');
+    const u = users.find(x=>String(x.NIK)===String(nik));
+    const logs = (db.logs||[]).filter(l => (!nik || String(l.NIK)===String(nik)) && sameMonth(l.Tanggal,tahun,bulan));
+    const izin = (db.izin||[]).filter(i => (!nik || String(i.NIK)===String(nik)) && izinOverlapsMonth(i,tahun,bulan));
+    const title = document.getElementById('report-period-title');
+    if(title) title.textContent = `${monthName(bulan)} ${tahun}${u ? ' - '+u.Nama : ' - Semua Karyawan'}`;
+    const ident = document.getElementById('report-identity');
+    if(ident) ident.innerHTML = u ? `<div><b>NIK:</b> ${escHtml(u.NIK)}</div><div><b>Nama:</b> ${escHtml(u.Nama)}</div><div><b>Jabatan:</b> ${escHtml(u.Jabatan || '-')}</div><div><b>QR ID Card:</b> ${escHtml(u.Barcode||u.NIK||'-')}</div>` : `<div><b>Periode:</b> ${monthName(bulan)} ${tahun}</div><div><b>Jumlah Karyawan:</b> ${users.length}</div>`;
+    const uniqueDays = new Set(logs.map(l=>dateKey(l.Tanggal)).filter(Boolean));
+    const tepat=logs.filter(l=>String(l.Status_Kehadiran||'').toLowerCase().includes('tepat')).length;
+    const terlambat=logs.filter(l=>String(l.Status_Kehadiran||'').toLowerCase().includes('terlambat')).length;
+    setText('rep-hadir',uniqueDays.size); setText('rep-tepat',tepat); setText('rep-terlambat',terlambat);
+    setText('rep-izin',izin.length);
+    setText('rep-hari-kerja', workingDaysInMonth(tahun,bulan));
+    const rows=[];
+    [...logs].sort((a,b)=>String(a.Tanggal).localeCompare(String(b.Tanggal))).forEach((l,i)=>rows.push(`<tr class="border-b"><td class="p-2">${i+1}</td><td class="p-2">${formatDate(l.Tanggal)}</td><td class="p-2">${escHtml(l.Jam||'-')}</td><td class="p-2">${escHtml(l.Status_Kehadiran||'Hadir')}</td><td class="p-2">Absen masuk</td></tr>`));
+    izin.forEach(i=>rows.push(`<tr class="border-b bg-purple-50"><td class="p-2">-</td><td class="p-2">${formatDate(i.Tgl_Mulai)}${i.Tgl_Selesai?' s/d '+formatDate(i.Tgl_Selesai):''}</td><td class="p-2">-</td><td class="p-2">Izin - ${escHtml(i.Status_Approval||'')}</td><td class="p-2">${escHtml(i.Keterangan||i.Jenis_Izin||'-')}</td></tr>`));
+    const body=document.getElementById('monthly-report-body');
+    if(body) body.innerHTML=rows.length?rows.join(''):'<tr><td colspan="5" class="p-4 text-center text-gray-500">Tidak ada data pada periode ini.</td></tr>';
+    setText('report-print-date',new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'}));
+}
+function setText(id,v){const e=document.getElementById(id);if(e)e.textContent=v;}
+function monthName(m){return ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'][m]||'';}
+function dateKey(v){ if(!v)return ''; const s=String(v); return s.length>=10?s.substring(0,10):s; }
+function sameMonth(v,y,m){const d=dateKey(v);return d.startsWith(String(y).padStart(4,'0')+'-'+String(m+1).padStart(2,'0'));}
+function parseDateSafe(v){const d=dateKey(v); if(!d)return null; const p=d.split('-'); if(p.length===3)return new Date(+p[0],+p[1]-1,+p[2]); return new Date(v);}
+function izinOverlapsMonth(i,y,m){const start=parseDateSafe(i.Tgl_Mulai), end=parseDateSafe(i.Tgl_Selesai||i.Tgl_Mulai); if(!start||!end)return false; const a=new Date(y,m,1), b=new Date(y,m+1,0); return start<=b && end>=a;}
+function workingDaysInMonth(y,m){let n=0;for(let d=1;d<=new Date(y,m+1,0).getDate();d++){const w=new Date(y,m,d).getDay();if(w!==0)n++;}return n;}
+function printMonthlyReport(){ renderMonthlyReport(); window.print(); }
+
+// ==========================================
+// 10. ADMIN DASHBOARD
+// ==========================================
+function switchAdminTab(tabId) {
+    document.getElementById('tab-persetujuan').classList.add('hidden');
+    document.getElementById('tab-pengaturan').classList.add('hidden');
+    document.getElementById('btn-tab-persetujuan').className = "flex-1 py-2 text-gray-500";
+    document.getElementById('btn-tab-pengaturan').className = "flex-1 py-2 text-gray-500";
+    
+    document.getElementById(tabId).classList.remove('hidden');
+    document.getElementById('btn-'+tabId).className = "flex-1 py-2 font-bold text-navy border-b-2 border-navy";
+}
+
+function renderAdminDashboard() {
+    const now = new Date();
+    const bulanEl = document.getElementById('admin-bulan');
+    const tahunEl = document.getElementById('admin-tahun');
+    if (!bulanEl || !tahunEl) return;
+
+    const tahunSekarang = now.getFullYear();
+    if (!tahunEl.options.length) {
+        for (let y = tahunSekarang - 2; y <= tahunSekarang + 1; y++) {
+            const opt = document.createElement('option'); opt.value = y; opt.textContent = y; tahunEl.appendChild(opt);
+        }
+        bulanEl.value = now.getMonth(); tahunEl.value = tahunSekarang;
+    }
+
+    const bulan = parseInt(bulanEl.value, 10);
+    const tahun = parseInt(tahunEl.value, 10);
+    const prefix = `${tahun}-${String(bulan + 1).padStart(2, '0')}`;
+    const bulanNama = bulanEl.options[bulan].text;
+
+    const employees = (db.users || []).filter(u => String(u.Role || '').toLowerCase() !== 'admin');
+    const logsPeriod = (db.logs || []).filter(l => String(l.Tanggal || '').slice(0, 7) === prefix);
+    const izinPeriod = (db.izin || []).filter(i => {
+        const t = String(i.Tgl_Mulai || '').slice(0, 7);
+        return t === prefix || String(i.Tgl_Selesai || '').slice(0, 7) === prefix;
+    });
+
+    document.getElementById('adm-total-karyawan').innerText = employees.length;
+    document.getElementById('adm-total-absen').innerText = logsPeriod.length;
+    document.getElementById('adm-label-absen').innerText = `${bulanNama} ${tahun}`;
+    document.getElementById('adm-total-izin').innerText = (db.izin || []).filter(i => String(i.Status_Approval || '').toLowerCase() === 'menunggu').length;
+    document.getElementById('adm-chart-period').innerText = `${bulanNama} ${tahun}`;
+
+    const uniqueDays = new Set(logsPeriod.map(l => `${l.NIK}|${String(l.Tanggal).slice(0,10)}`)).size;
+    document.getElementById('adm-total-hari-kerja').innerText = uniqueDays;
+
+    const tepat = logsPeriod.filter(l => String(l.Status_Kehadiran || '').toLowerCase().includes('tepat')).length;
+    const terlambat = logsPeriod.filter(l => String(l.Status_Kehadiran || '').toLowerCase().includes('terlambat')).length;
+    document.getElementById('adm-tepat').innerText = tepat;
+    document.getElementById('adm-terlambat').innerText = terlambat;
+
+    const countStatus = st => izinPeriod.filter(i => String(i.Status_Approval || '').toLowerCase() === st).length;
+    document.getElementById('adm-izin-menunggu').innerText = countStatus('menunggu');
+    document.getElementById('adm-izin-setuju').innerText = countStatus('disetujui');
+    document.getElementById('adm-izin-tolak').innerText = countStatus('ditolak');
+
+    const rows = employees.map((u, idx) => {
+        const myLogs = logsPeriod.filter(l => String(l.NIK) === String(u.NIK));
+        const days = new Set(myLogs.map(l => String(l.Tanggal).slice(0,10))).size;
+        const myIzin = izinPeriod.filter(i => String(i.NIK) === String(u.NIK)).length;
+        const ontime = myLogs.filter(l => String(l.Status_Kehadiran || '').toLowerCase().includes('tepat')).length;
+        const late = myLogs.filter(l => String(l.Status_Kehadiran || '').toLowerCase().includes('terlambat')).length;
+        return { u, idx: idx + 1, days, ontime, late, myIzin };
+    });
+
+    document.getElementById('admin-laporan-body').innerHTML = rows.length ? rows.map(r => `
+        <tr class="border-b hover:bg-gray-50">
+            <td class="p-3">${r.idx}</td><td class="p-3 font-mono">${r.u.NIK || '-'}</td><td class="p-3 font-semibold">${r.u.Nama || '-'}</td><td class="p-3">${r.u.Jabatan || '-'}</td>
+            <td class="p-3 text-center font-bold text-blue-700">${r.days}</td><td class="p-3 text-center text-green-600">${r.ontime}</td><td class="p-3 text-center text-red-500">${r.late}</td><td class="p-3 text-center text-amber-600">${r.myIzin}</td>
+        </tr>`).join('') : '<tr><td colspan="8" class="p-6 text-center text-gray-400">Belum ada data karyawan.</td></tr>';
+
+    const maxDays = Math.max(1, ...rows.map(r => r.days));
+    document.getElementById('admin-bar-chart').innerHTML = rows.length ? rows.map(r => `
+        <div><div class="flex justify-between text-sm mb-1"><span class="font-semibold text-gray-700">${r.u.Nama || r.u.NIK}</span><b class="text-navy">${r.days} hari</b></div>
+        <div class="admin-chart-bar"><div class="admin-chart-fill" style="width:${Math.round((r.days / maxDays) * 100)}%"></div></div></div>`).join('') : '<div class="text-center text-gray-400 py-8">Belum ada data absen pada periode ini.</div>';
+
+    document.getElementById('cfg-jam').value = db.config.jam_masuk || '07:30';
+    document.getElementById('cfg-tol').value = db.config.toleransi || '15';
+    document.getElementById('cfg-lat').value = db.config.lat_kantor || '';
+    document.getElementById('cfg-lng').value = db.config.lng_kantor || '';
+    document.getElementById('cfg-rad').value = db.config.radius || '50';
+    applyAppLogo();
+
+    const pendingList = (db.izin || []).filter(i => String(i.Status_Approval || '').toLowerCase() === 'menunggu');
+    document.getElementById('badge-pending').innerText = pendingList.length;
+    document.getElementById('admin-izin-list').innerHTML = pendingList.map(i => `
+        <div class="bg-white p-4 rounded-xl border shadow-sm">
+            <div class="flex justify-between gap-3"><div class="font-bold text-navy">${i.Nama || i.NIK}</div><div class="text-xs bg-yellow-100 px-2 py-1 rounded">${i.Jenis_Izin || '-'}</div></div>
+            <div class="text-xs text-gray-500 mt-2">${formatDate(i.Tgl_Mulai)} s/d ${i.Tgl_Selesai ? formatDate(i.Tgl_Selesai):'-'}</div>
+            <div class="text-sm text-gray-700 italic mt-2 mb-3">"${i.Keterangan || '-'}"</div>
+            <div class="flex gap-2"><button onclick="approveIzin('${i.ID}', 'Disetujui')" class="flex-1 bg-green-500 text-white text-xs py-2 rounded font-bold">Setujui</button><button onclick="approveIzin('${i.ID}', 'Ditolak')" class="flex-1 bg-red-500 text-white text-xs py-2 rounded font-bold">Tolak</button></div>
+        </div>`).join('') || '<div class="col-span-full text-center text-sm text-gray-400 p-8 bg-white rounded-xl border">Tidak ada pengajuan izin yang menunggu persetujuan.</div>';
+
+    // Sinkronkan bagian Master Karyawan setiap kali dashboard admin dirender.
+    // Sebelumnya data Users sudah berhasil dimuat ke db.users, tetapi fungsi
+    // renderEmployeeList() tidak pernah dipanggil sehingga tabel Master Karyawan kosong.
+    renderEmployeeList();
+    populateEmployeeControls();
+}
+
+
+function approveIzin(id, status) {
+    Swal.fire({
+        title: "Konfirmasi", text: `Anda yakin ingin mengubah status menjadi ${status}?`, icon: "question",
+        showCancelButton: true, confirmButtonText: "Ya", cancelButtonText: "Batal"
+    }).then((result) => {
+        if (result.isConfirmed) {
+            startLoading();
+            if (typeof google === 'undefined') {
+                const idx = db.izin.findIndex(i => i.ID === id);
+                if(idx>-1) db.izin[idx].Status_Approval = status;
+                setTimeout(() => { endLoading(); renderAdminDashboard(); }, 500);
+            } else {
+                google.script.run
+                    .withSuccessHandler(res => { endLoading(); loadData(); })
+                    .withFailureHandler(err => { endLoading(); Swal.fire("Error", String(err), "error"); })
+                    .updateLeaveStatus(id, status);
+            }
+        }
+    });
+}
+
+function saveAdminSettings() {
+    const payload = {
+        jam_masuk: document.getElementById('cfg-jam').value,
+        toleransi: document.getElementById('cfg-tol').value,
+        lat_kantor: document.getElementById('cfg-lat').value,
+        lng_kantor: document.getElementById('cfg-lng').value,
+        radius: document.getElementById('cfg-rad').value
+    };
+    
+    startLoading("Menyimpan Pengaturan...");
+    if (typeof google === 'undefined') {
+        Object.assign(db.config, payload);
+        setTimeout(() => { endLoading(); Swal.fire("Sukses", "Disimpan di memori simulasi", "success"); }, 500);
+    } else {
+        google.script.run
+            .withSuccessHandler(res => { endLoading(); Swal.fire("Sukses", res.message, "success"); loadData(); })
+            .withFailureHandler(err => { endLoading(); Swal.fire("Error", String(err), "error"); })
+            .saveConfig(payload);
+    }
+}
+
+// ==========================================
+// 11. UTILITIES
+// ==========================================
+function startClock() {
+    setInterval(() => {
+        const now = new Date();
+        document.getElementById('clock-display').innerText = now.toLocaleTimeString('id-ID', { hour12: false });
+    }, 1000);
+}
+
+function getTodayString() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function formatDate(dateStr) {
+    if(!dateStr) return '';
+    try {
+        const d = new Date(dateStr);
+        return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch(e) { return dateStr; }
+}
+
+function parseTime(timeStr) {
+    const [h, m] = timeStr.split(':');
+    const d = new Date();
+    d.setHours(h, m, 0, 0);
+    return d;
+}
+
+</script>
+</body>
+</html>
